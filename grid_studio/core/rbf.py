@@ -5,6 +5,8 @@ from __future__ import annotations
 import numpy as np
 
 
+# Kernels for which scipy.interpolate.RBFInterpolator does not require an
+# explicit epsilon parameter (they are scale-invariant by construction).
 _SCALE_INVARIANT_KERNELS = {"thin_plate_spline", "cubic", "quintic", "linear"}
 
 

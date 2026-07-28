@@ -45,6 +45,11 @@ class TestRBFGrid:
         result = engine.run(simple_points, x_col="x", y_col="y", z_col="z")
         assert result.grid.ndim == 2
         assert result.method == "rbf"
+        # Grid should contain finite values in the interior
+        assert np.any(np.isfinite(result.grid))
+        # Grid bounds should be consistent with input data bounds
+        assert result.stats["min"] >= simple_points["z"].min() - 1e-6
+        assert result.stats["max"] <= simple_points["z"].max() + 1e-6
 
 
 class TestTriangulateGrid:
@@ -82,3 +87,9 @@ class TestTriangulateGrid:
         result = engine.run(simple_points, x_col="x", y_col="y", z_col="z")
         assert result.grid.ndim == 2
         assert result.method == "triangulate"
+        # Interior cells should be non-NaN
+        assert np.any(~np.isnan(result.grid))
+        # All non-NaN values should lie within the input range
+        valid = result.grid[~np.isnan(result.grid)]
+        assert valid.min() >= simple_points["z"].min() - 1e-6
+        assert valid.max() <= simple_points["z"].max() + 1e-6
