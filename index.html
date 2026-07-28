@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gridding Studio — Interpolate & Export Geoscience Grids</title>
+    <meta
+      name="description"
+      content="Interactive gridding tool for soil geochemistry and airborne geophysics. Upload CSV, choose IDW / Nearest Neighbour / Minimum Curvature, pick a colour scheme, export GRD / MSH / GeoTIFF."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230a1414'/%3E%3Cpath d='M6 6h20v20H6z' fill='none' stroke='%234fd1c5' stroke-width='2'/%3E%3Cpath d='M6 13h20M6 19h20M13 6v20M19 6v20' stroke='%234fd1c5' stroke-width='1' opacity='0.5'/%3E%3C/svg%3E"
+    />
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="brand">
+        <svg
+          class="logo"
+          width="28"
+          height="28"
+          viewBox="0 0 32 32"
+          fill="none"
+          aria-label="Gridding Studio logo"
+        >
+          <rect x="1" y="1" width="30" height="30" rx="6" stroke="currentColor" stroke-width="1.5" />
+          <path d="M1 11h30M1 21h30M11 1v30M21 1v30" stroke="currentColor" stroke-width="1" opacity="0.55" />
+          <circle cx="7" cy="7" r="1.8" fill="currentColor" />
+          <circle cx="17" cy="16" r="1.8" fill="currentColor" />
+          <circle cx="26" cy="24" r="1.8" fill="currentColor" />
+          <circle cx="24" cy="9" r="1.8" fill="currentColor" />
+          <circle cx="10" cy="24" r="1.8" fill="currentColor" />
+        </svg>
+        <div class="brand-text">
+          <div class="brand-name">Gridding Studio</div>
+          <div class="brand-sub">Geochem & geophysics interpolation</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button
+          class="btn btn-ghost"
+          id="load-sample-btn"
+          type="button"
+          data-testid="button-load-sample"
+        >
+          Load sample data
+        </button>
+        <button
+          class="btn btn-ghost"
+          data-theme-toggle
+          type="button"
+          aria-label="Switch to light mode"
+          data-testid="button-theme-toggle"
+        ></button>
+      </div>
+    </header>
+
+    <main class="app-shell">
+      <!-- LEFT: controls -->
+      <aside class="panel controls">
+        <section class="control-block">
+          <div class="block-header">
+            <span class="step">01</span>
+            <h2>Input data</h2>
+          </div>
+          <label class="file-drop" id="file-drop">
+            <input type="file" id="file-input" accept=".csv,.txt" data-testid="input-file" />
+            <div class="file-drop-inner">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" />
+              </svg>
+              <div>
+                <div class="file-drop-title">Drop CSV or click to browse</div>
+                <div class="file-drop-hint">Needs X, Y and a value column</div>
+              </div>
+            </div>
+          </label>
+          <div class="field-row" id="column-fields" hidden>
+            <label class="field">
+              <span>X (Easting)</span>
+              <select id="col-x" data-testid="select-col-x"></select>
+            </label>
+            <label class="field">
+              <span>Y (Northing)</span>
+              <select id="col-y" data-testid="select-col-y"></select>
+            </label>
+            <label class="field field-full">
+              <span>Value</span>
+              <select id="col-z" data-testid="select-col-z"></select>
+            </label>
+          </div>
+          <div class="data-stats" id="data-stats" hidden></div>
+        </section>
+
+        <section class="control-block">
+          <div class="block-header">
+            <span class="step">02</span>
+            <h2>Gridding method</h2>
+          </div>
+          <label class="field field-full">
+            <span>Interpolation</span>
+            <select id="method" data-testid="select-method">
+              <option value="idw">Inverse Distance Weighting (IDW) — irregular soil sampling</option>
+              <option value="nn">Nearest Neighbour — very dense / clustered data</option>
+              <option value="mc">Minimum Curvature — evenly spaced flight lines</option>
+            </select>
+          </label>
+          <div class="field-row" id="method-params">
+            <label class="field" id="param-power-wrap">
+              <span>IDW power</span>
+              <input type="number" id="idw-power" value="2" min="0.5" max="6" step="0.5" data-testid="input-idw-power" />
+            </label>
+            <label class="field" id="param-radius-wrap">
+              <span>Search radius (m)</span>
+              <input type="number" id="search-radius" value="0" min="0" step="10" data-testid="input-radius" />
+              <span class="field-hint">0 = auto</span>
+            </label>
+            <label class="field field-full" id="param-mc-wrap" hidden>
+              <span>Iterations</span>
+              <input type="number" id="mc-iters" value="400" min="50" max="2000" step="50" data-testid="input-mc-iters" />
+            </label>
+          </div>
+        </section>
+
+        <section class="control-block">
+          <div class="block-header">
+            <span class="step">03</span>
+            <h2>Grid geometry</h2>
+          </div>
+          <label class="field field-full">
+            <span>Cell size (m)</span>
+            <input type="number" id="cell-size" value="25" min="0.1" step="1" data-testid="input-cell-size" />
+          </label>
+          <div class="field-row">
+            <label class="field">
+              <span>Padding (%)</span>
+              <input type="number" id="padding" value="5" min="0" max="50" step="1" data-testid="input-padding" />
+            </label>
+            <label class="field">
+              <span>Blank distance</span>
+              <input type="number" id="blank-dist" value="0" min="0" step="10" data-testid="input-blank" />
+              <span class="field-hint">0 = keep all</span>
+            </label>
+          </div>
+          <label class="field field-full">
+            <span>Coordinate system (for GeoTIFF)</span>
+            <select id="epsg-select" data-testid="select-epsg"></select>
+          </label>
+          <label class="field field-full" id="epsg-custom-wrap" hidden>
+            <span>EPSG code</span>
+            <input
+              type="number"
+              id="epsg-custom"
+              placeholder="e.g. 28352"
+              min="1024"
+              max="32767"
+              step="1"
+              data-testid="input-epsg-custom"
+            />
+            <span class="field-hint" id="epsg-custom-hint">Enter any EPSG code (1024–32767)</span>
+          </label>
+          <div class="grid-info muted" id="grid-info">—</div>
+        </section>
+
+        <section class="control-block">
+          <div class="block-header">
+            <span class="step">04</span>
+            <h2>Colour scheme</h2>
+          </div>
+          <div class="palette-grid" id="palette-grid"></div>
+          <div class="field-row">
+            <label class="field">
+              <span>Min</span>
+              <input type="number" id="col-min" placeholder="auto" data-testid="input-col-min" />
+            </label>
+            <label class="field">
+              <span>Max</span>
+              <input type="number" id="col-max" placeholder="auto" data-testid="input-col-max" />
+            </label>
+          </div>
+          <label class="check">
+            <input type="checkbox" id="reverse-palette" data-testid="input-reverse" /> Reverse palette
+          </label>
+          <label class="check">
+            <input type="checkbox" id="log-scale" data-testid="input-log" /> Log stretch
+          </label>
+        </section>
+
+        <button class="btn btn-primary btn-block" id="run-btn" type="button" data-testid="button-run" disabled>
+          <span class="btn-label">Compute grid</span>
+        </button>
+      </aside>
+
+      <!-- RIGHT: canvas + exports -->
+      <section class="panel viewer">
+        <div class="viewer-toolbar">
+          <div class="viewer-title" id="viewer-title">No grid yet</div>
+          <div class="viewer-actions">
+            <button class="btn btn-ghost" id="toggle-points" type="button" data-testid="button-toggle-points" disabled>
+              Show points
+            </button>
+            <div class="export-group">
+              <button class="btn btn-secondary" id="export-grd" type="button" disabled data-testid="button-export-grd">
+                Export .grd
+              </button>
+              <button class="btn btn-secondary" id="export-msh" type="button" disabled data-testid="button-export-msh">
+                Export .msh
+              </button>
+              <button class="btn btn-secondary" id="export-tif" type="button" disabled data-testid="button-export-tif">
+                Export .tif
+              </button>
+              <button class="btn btn-ghost" id="export-png" type="button" disabled data-testid="button-export-png">
+                Export .png
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="grid-canvas" data-testid="canvas-grid"></canvas>
+          <div class="canvas-empty" id="canvas-empty">
+            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.25" opacity="0.35">
+              <rect x="4" y="4" width="40" height="40" rx="2" />
+              <path d="M4 16h40M4 28h40M4 40h40M16 4v40M28 4v40M40 4v40" opacity="0.6" />
+            </svg>
+            <div class="empty-title">Upload a CSV to begin</div>
+            <div class="empty-sub">
+              Need a starter dataset? Click <strong>Load sample data</strong> — a synthetic anomaly of ~180 soil sites in MGA Zone 52.
+            </div>
+          </div>
+          <div class="canvas-crosshair" id="crosshair" hidden></div>
+        </div>
+        <footer class="viewer-footer">
+          <div class="legend" id="legend" hidden>
+            <div class="legend-bar" id="legend-bar"></div>
+            <div class="legend-labels">
+              <span id="legend-min">—</span>
+              <span id="legend-mid">—</span>
+              <span id="legend-max">—</span>
+            </div>
+          </div>
+          <div class="cursor-info" id="cursor-info">Hover the grid for cell values</div>
+        </footer>
+      </section>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+    <script src="./palettes.js"></script>
+    <script src="./crs.js"></script>
+    <script src="./gridding.js"></script>
+    <script src="./exporters.js"></script>
+    <script src="./app.js"></script>
+  <script data-pplx-inline-edit>
+(function () {
+  if (window === window.top) return;
+
+  const allowedParentOrigins = ["https://www.perplexity.ai","https://perplexity.ai","https://testing.perplexity.ai","https://staging.perplexity.ai","https://*.preview.i.perplexity.ai","http://localhost:3000","http://127.0.0.1:3000","http://localhost:5173","http://127.0.0.1:5173"];
+  const MAX_FONT_BYTES = 500 * 1024;
+  const MAX_TOTAL_FONT_BYTES = 2 * 1024 * 1024;
+  let scrollForwarding = false;
+  let scrollRaf = 0;
+  let trustedTopOrigin = null;
+
+  // Allow entries like "https://*.preview.i.perplexity.ai" — the wildcard
+  // matches a single DNS label (no dots), so "https://*.foo" cannot stretch
+  // across multiple labels.
+  function matchesAllowedOrigin(origin) {
+    if (!origin) return false;
+    for (const entry of allowedParentOrigins) {
+      if (!entry.includes("*")) {
+        if (entry === origin) return true;
+        continue;
+      }
+      const pattern = new RegExp(
+        "^" +
+          entry.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^.]+") +
+          "$",
+      );
+      if (pattern.test(origin)) return true;
+    }
+    return false;
+  }
+
+  // Trust decision: when the sender is same-origin-visible (event.origin is a
+  // real origin like https://www.perplexity.ai) we trust event.origin directly.
+  // When event.origin is "null" (opaque broker srcdoc), we fall back to the
+  // broker's stamped `parentOrigin` to identify the top window. The fallback
+  // is claim-only — we rely on the browser's native `targetOrigin` enforcement
+  // on the response path (see postToTrustedTop) to ensure replies can't be
+  // delivered to anyone but the actual top window of that claimed origin.
+  function getTrustedParentOrigin(event) {
+    const forwardedParentOrigin =
+      typeof event.data.parentOrigin === "string" ? event.data.parentOrigin : null;
+    const parentOrigin = event.origin === "null" ? forwardedParentOrigin : event.origin;
+    return matchesAllowedOrigin(parentOrigin) ? parentOrigin : null;
+  }
+
+  // All responses go to window.top with targetOrigin = the allowlisted origin.
+  // An attacker that iframes us inside their own null-origin broker can claim
+  // any parentOrigin they like, but the browser will drop the reply whenever
+  // the real top's origin doesn't match — so the screenshot never leaves.
+  function postToTrustedTop(message) {
+    if (!trustedTopOrigin) return;
+    try {
+      window.top.postMessage(message, trustedTopOrigin);
+    } catch (_error) {}
+  }
+
+  function inlineAll(original, clone) {
+    if (original.nodeType !== 1 || clone.nodeType !== 1) return;
+
+    try {
+      const computedStyle = getComputedStyle(original);
+      // cssText on a computed style is the serialized declaration in modern
+      // Chromium/Safari — a single read beats enumerating ~400 longhand
+      // properties. Firefox returns "" here, so we fall back on empty.
+      const serialized = computedStyle.cssText;
+      if (serialized) {
+        clone.style.cssText = serialized;
+      } else {
+        const parts = new Array(computedStyle.length);
+        for (let index = 0; index < computedStyle.length; index += 1) {
+          const property = computedStyle[index];
+          parts[index] = `${property}:${computedStyle.getPropertyValue(property)};`;
+        }
+        clone.style.cssText = parts.join("");
+      }
+    } catch (_error) {}
+
+    const originalChildren = original.children;
+    const clonedChildren = clone.children;
+    for (
+      let index = 0;
+      index < originalChildren.length && index < clonedChildren.length;
+      index += 1
+    ) {
+      inlineAll(originalChildren[index], clonedChildren[index]);
+    }
+  }
+
+  function extractFontUrl(srcValue) {
+    const matches = [
+      ...srcValue.matchAll(
+        /url\(["']?([^"')]+)["']?\)(?:\s*format\(["']?([^"')]+)["']?\))?/gi,
+      ),
+    ];
+    if (matches.length === 0) return null;
+    const woff2 = matches.find((m) => m[2] && m[2].toLowerCase().includes("woff2"));
+    if (woff2) return woff2[1];
+    const woff = matches.find((m) => m[2] && m[2].toLowerCase().includes("woff"));
+    if (woff) return woff[1];
+    return matches[0][1];
+  }
+
+  // Cache resolved font URL -> data URI across captures. Fonts on a page
+  // essentially never change, and a batch run emits multiple captures back to
+  // back — without this we'd refetch + re-base64 every time.
+  const fontDataUriCache = new Map();
+  const SRC_DECLARATION_RE = /src\s*:\s*[^;}]+/i;
+
+  async function fetchAsDataUri(url) {
+    if (fontDataUriCache.has(url)) return fontDataUriCache.get(url);
+    let dataUri = null;
+    try {
+      const response = await fetch(url, { mode: "cors", credentials: "omit" });
+      if (response.ok) {
+        const blob = await response.blob();
+        if (blob.size <= MAX_FONT_BYTES) {
+          dataUri = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () =>
+              resolve(typeof reader.result === "string" ? reader.result : null);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+          });
+        }
+      }
+    } catch (_error) {
+      dataUri = null;
+    }
+    fontDataUriCache.set(url, dataUri);
+    return dataUri;
+  }
+
+  function collectFontFaceRuleTexts() {
+    const rules = [];
+    for (const sheet of document.styleSheets) {
+      let cssRules;
+      try {
+        cssRules = sheet.cssRules;
+      } catch (_error) {
+        continue;
+      }
+      if (!cssRules) continue;
+      for (const rule of cssRules) {
+        const cssText = rule.cssText || "";
+        if (cssText.startsWith("@font-face")) rules.push(cssText);
+      }
+    }
+    return rules;
+  }
+
+  async function buildInlinedFontCss() {
+    const ruleTexts = collectFontFaceRuleTexts();
+    if (ruleTexts.length === 0) return null;
+
+    const resolved = ruleTexts.map((cssText) => {
+      if (!SRC_DECLARATION_RE.test(cssText)) return null;
+      const srcMatch = cssText.match(/src\s*:\s*([^;}]+)[;}]/i);
+      if (!srcMatch) return null;
+      const url = extractFontUrl(srcMatch[1]);
+      if (!url) return null;
+      try {
+        return { cssText, url: new URL(url, document.baseURI).href };
+      } catch (_error) {
+        return null;
+      }
+    });
+
+    const dataUris = await Promise.all(
+      resolved.map((entry) => (entry ? fetchAsDataUri(entry.url) : Promise.resolve(null))),
+    );
+
+    const inlined = [];
+    let totalBytes = 0;
+    for (let index = 0; index < resolved.length; index += 1) {
+      const entry = resolved[index];
+      const dataUri = dataUris[index];
+      if (!entry || !dataUri) continue;
+      const approxBytes = dataUri.length * 0.75;
+      if (totalBytes + approxBytes > MAX_TOTAL_FONT_BYTES) break;
+      totalBytes += approxBytes;
+      inlined.push(entry.cssText.replace(SRC_DECLARATION_RE, `src: url("${dataUri}")`));
+    }
+    return inlined.length > 0 ? inlined.join("\n") : null;
+  }
+
+  function stripExternal(clone) {
+    const images = clone.querySelectorAll("img");
+    for (let index = 0; index < images.length; index += 1) {
+      const src = images[index].getAttribute("src");
+      if (src && !src.startsWith("data:")) images[index].removeAttribute("src");
+    }
+
+    const elements = clone.querySelectorAll("*");
+    for (let index = 0; index < elements.length; index += 1) {
+      const style = elements[index].style.cssText;
+      if (style && style.includes("url(")) {
+        elements[index].style.cssText = style.replace(
+          /url\(["']?(?!data:)[^)"']*["']?\)/gi,
+          "none",
+        );
+      }
+    }
+  }
+
+  function emitScroll() {
+    scrollRaf = 0;
+    if (!scrollForwarding) return;
+    postToTrustedTop({
+      type: "INLINE_EDIT_SCROLL",
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
+    });
+  }
+
+  window.addEventListener(
+    "scroll",
+    function () {
+      if (!scrollForwarding || scrollRaf) return;
+      scrollRaf = requestAnimationFrame(emitScroll);
+    },
+    { passive: true, capture: true },
+  );
+
+  async function handleCaptureRequest(event) {
+    const requestId = event.data.requestId;
+    const scrollX = window.scrollX;
+    const scrollY = window.scrollY;
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    function postResult(dataUrl) {
+      postToTrustedTop({
+        type: "INLINE_EDIT_SCREENSHOT_RESULT",
+        requestId,
+        dataUrl,
+        scrollX,
+        scrollY,
+      });
+    }
+
+    try {
+      // Wait for any pending web fonts to resolve so both inline metrics and
+      // the @font-face inlining below see the same loaded faces.
+      if (document.fonts && document.fonts.ready) {
+        try {
+          await document.fonts.ready;
+        } catch (_error) {}
+      }
+
+      const clone = document.documentElement.cloneNode(true);
+      inlineAll(document.documentElement, clone);
+
+      const removedNodes = clone.querySelectorAll("script,link[rel=\"stylesheet\"],style");
+      for (let index = 0; index < removedNodes.length; index += 1) {
+        removedNodes[index].remove();
+      }
+
+      stripExternal(clone);
+
+      // Re-embed web fonts as data-URI @font-face rules so the SVG rasterizer
+      // can resolve them — external font URLs aren't fetched during
+      // foreignObject rendering, which would otherwise force a fallback face
+      // and change text metrics.
+      const inlinedFontCss = await buildInlinedFontCss();
+      if (inlinedFontCss) {
+        const styleEl = document.createElement("style");
+        styleEl.textContent = inlinedFontCss;
+        const head = clone.querySelector("head");
+        if (head) head.appendChild(styleEl);
+        else clone.insertBefore(styleEl, clone.firstChild);
+      }
+
+      const html = new XMLSerializer().serializeToString(clone);
+      const svg =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
+        '<foreignObject width="100%" height="100%">' +
+        `<div xmlns="http://www.w3.org/1999/xhtml" style="width:${width}px;height:${height}px;overflow:hidden">` +
+        `<div style="position:relative;left:-${scrollX}px;top:-${scrollY}px">` +
+        html +
+        "</div></div></foreignObject></svg>";
+      const svgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+      const image = new Image();
+      image.onload = function () {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d").drawImage(image, 0, 0);
+        postResult(canvas.toDataURL("image/png"));
+      };
+      image.onerror = function () {
+        postResult(null);
+      };
+      image.src = svgUrl;
+    } catch (_error) {
+      postResult(null);
+    }
+  }
+
+  window.addEventListener("message", function (event) {
+    if (!event.data) return;
+    // Only accept messages from the direct parent frame. Blocks sibling /
+    // unrelated-window postMessage senders that could otherwise reach us.
+    if (event.source !== window.parent) return;
+
+    const trustedParentOrigin = getTrustedParentOrigin(event);
+    if (!trustedParentOrigin) return;
+    trustedTopOrigin = trustedParentOrigin;
+
+    if (event.data.type === "INLINE_EDIT_SCROLL_START") {
+      scrollForwarding = true;
+      emitScroll();
+      return;
+    }
+
+    if (event.data.type === "INLINE_EDIT_SCROLL_STOP") {
+      scrollForwarding = false;
+      if (scrollRaf) cancelAnimationFrame(scrollRaf);
+      scrollRaf = 0;
+      return;
+    }
+
+    if (event.data.type !== "INLINE_EDIT_CAPTURE_REQUEST") return;
+
+    handleCaptureRequest(event);
+  });
+})();
+
+
+</script></body>
+</html>
