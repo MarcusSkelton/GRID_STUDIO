@@ -35,9 +35,12 @@ class GridResult:
     @property
     def transform(self):
         """Affine transform for rasterio (top-left origin)."""
-        from affine import Affine  # type: ignore[import]
+        try:
+            from rasterio.transform import from_bounds  # type: ignore[import]
+        except ImportError as exc:
+            raise ImportError("rasterio is required for the transform property: pip install rasterio") from exc
 
-        return Affine(self.resolution, 0.0, self.x_min, 0.0, -self.resolution, self.y_max)
+        return from_bounds(self.x_min, self.y_min, self.x_max, self.y_max, self.n_cols, self.n_rows)
 
     @property
     def n_cols(self) -> int:
